@@ -1,6 +1,5 @@
 # Feel free to add more files to the program and include them in the main file
 # Different programming languages are accepted.
-import os
 
 # Requirements
 # 1. Make simulation real time
@@ -30,6 +29,7 @@ import os
 # Deadline - 20th of December 2024
 # Way of handing the projects over will be defined 24.11.2024
 
+import os
 import pygame
 import numpy as np
 import time
@@ -46,9 +46,6 @@ screen = pygame.display.set_mode((width, height))
 n_cells_x, n_cells_y = 40, 30
 cell_width = width // n_cells_x
 cell_height = height // n_cells_y
-
-# Game state
-game_state = np.random.choice([0, 1], size=(n_cells_x, n_cells_y), p=[0.8, 0.2])
 
 # Colors
 white = (255, 255, 255)
@@ -67,49 +64,65 @@ green = (0, 255, 0)
 #     text_rect = text.get_rect(center=(button_x + button_width // 2, button_y + button_height // 2))
 #     screen.blit(text, text_rect)
 
+#singleton
+class GameState:
+    _instance = None
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(GameState, cls).__new__(cls)
+            cls._instance.state = None
+        return cls._instance
+
+    def initialize(self, n_cells_x, n_cells_y):
+        self.state = np.random.choice([0, 1], size=(n_cells_x, n_cells_y), p=[0.8, 0.2])
+
 def draw_grid():
     for y in range(0, height, cell_height):
         for x in range(0, width, cell_width):
             cell = pygame.Rect(x, y, cell_width, cell_height)
             pygame.draw.rect(screen, gray, cell, 1)
 
+
+
 def next_generation():
-    global game_state
-    new_state = np.copy(game_state)
+    game_state = GameState()
+    new_state = np.copy(game_state.state)
 
     for y in range(n_cells_y):
         for x in range(n_cells_x):
-            n_neighbors = game_state[(x - 1) % n_cells_x, (y - 1) % n_cells_y] + \
-                          game_state[(x)     % n_cells_x, (y - 1) % n_cells_y] + \
-                          game_state[(x + 1) % n_cells_x, (y - 1) % n_cells_y] + \
-                          game_state[(x - 1) % n_cells_x, (y)     % n_cells_y] + \
-                          game_state[(x + 1) % n_cells_x, (y)     % n_cells_y] + \
-                          game_state[(x - 1) % n_cells_x, (y + 1) % n_cells_y] + \
-                          game_state[(x)     % n_cells_x, (y + 1) % n_cells_y] + \
-                          game_state[(x + 1) % n_cells_x, (y + 1) % n_cells_y]
+            n_neighbors = game_state.state[(x - 1) % n_cells_x, (y - 1) % n_cells_y] + \
+                          game_state.state[(x)     % n_cells_x, (y - 1) % n_cells_y] + \
+                          game_state.state[(x + 1) % n_cells_x, (y - 1) % n_cells_y] + \
+                          game_state.state[(x - 1) % n_cells_x, (y)     % n_cells_y] + \
+                          game_state.state[(x + 1) % n_cells_x, (y)     % n_cells_y] + \
+                          game_state.state[(x - 1) % n_cells_x, (y + 1) % n_cells_y] + \
+                          game_state.state[(x)     % n_cells_x, (y + 1) % n_cells_y] + \
+                          game_state.state[(x + 1) % n_cells_x, (y + 1) % n_cells_y]
 
-            if game_state[x, y] == 1 and (n_neighbors < 2 or n_neighbors > 3):
+            if game_state.state[x, y] == 1 and (n_neighbors < 2 or n_neighbors > 3):
                 new_state[x, y] = 0
-            elif game_state[x, y] == 0 and n_neighbors == 3:
+            elif game_state.state[x, y] == 0 and n_neighbors == 3:
                 new_state[x, y] = 1
 
-    game_state = new_state
+    game_state.state = new_state
 
 def draw_cells():
+    game_state = GameState()
     for y in range(n_cells_y):
         for x in range(n_cells_x):
             cell = pygame.Rect(x * cell_width, y * cell_height, cell_width, cell_height)
-            if game_state[x, y] == 1:
+            if game_state.state[x, y] == 1:
                 pygame.draw.rect(screen, black, cell)
 
 def save_game_state():
-    np.save('game_state.npy', game_state)
+    game_state = GameState()
+    np.save('game_state.npy', game_state.state)
     print('Game state SAVED.')
 
 def load_game_state():
-    global game_state
+    game_state = GameState()
     if os.path.exists('game_state.npy'):
-        game_state = np.load('game_state.npy')
+        game_state.state = np.load('game_state.npy')
         print('Game state LOADED.')
     else:
         print('No game state saved.')
@@ -118,19 +131,20 @@ clock = pygame.time.Clock()
 i = 0
 running = True
 playing = True
+game_state = GameState()
+game_state.initialize(n_cells_x, n_cells_y)
+
 while running:
     clock.tick(60)
     screen.fill(white)
     draw_grid()
     draw_cells()
-    # draw_button()
     pygame.display.flip()
     i += 1
 
     if playing and (i%20 == 0):
         next_generation()
-    # if i == 60:
-    #     i = 0
+
 
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
