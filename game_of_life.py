@@ -1,38 +1,6 @@
-# Feel free to add more files to the program and include them in the main file
-# Different programming languages are accepted.
-
-# Requirements
-# 1. Make simulation real time
-# 2. Add pause / resume logic
-# 3. Add save / load logic
-# 4. Implement design patterns wherever you think they're suitable
-# 5. Provide a brief explanation why you used the chosen design patterns
-
-# High-level logic
-# 1. Create and init the simulation grid
-# 2. Start the simulation with a tick interval of <n> seconds
-# 3. At each tick:
-#   3.1. Update the grid - loop over each element of the board
-#   3.2. Render new generation
-
-# General approach
-# 1. Plan & write down the general workflow
-#  1.1. Define Input&Output 
-#  1.2. Consider adding validation
-# 2. Separate the main algorithms / actors in the code. Try to abstract as much common code as possible
-# 3. Define communication between the objects
-# 4. List the patterns you could apply
-# 5. Build PoCs (Proof of concepts). Try to separate implementation of specific steps. Prepare smaller modules
-#    and combine them into a complete application
-# 6. Refine if needed
-
-# Deadline - 20th of December 2024
-# Way of handing the projects over will be defined 24.11.2024
-
 import os
 import pygame
 import numpy as np
-import time
 
 
 # Initialize Pygame
@@ -40,6 +8,7 @@ pygame.init()
 
 # Screen dimensions
 width, height = 800, 600
+sidebar_width = 200
 screen = pygame.display.set_mode((width, height))
 
 # Grid dimensions
@@ -52,17 +21,6 @@ white = (255, 255, 255)
 black = (0, 0, 0)
 gray = (128, 128, 128)
 green = (0, 255, 0)
-
-# # Button dimensions
-# button_width, button_height = 200, 50
-# button_x, button_y = (width - button_width) // 2, height - button_height - 10
-#
-# def draw_button():
-#     pygame.draw.rect(screen, green, (button_x, button_y, button_width, button_height))
-#     font = pygame.font.Font(None, 36)
-#     text = font.render("Next Generation", True, black)
-#     text_rect = text.get_rect(center=(button_x + button_width // 2, button_y + button_height // 2))
-#     screen.blit(text, text_rect)
 
 #singleton
 class GameState:
@@ -82,6 +40,23 @@ def draw_grid():
             cell = pygame.Rect(x, y, cell_width, cell_height)
             pygame.draw.rect(screen, gray, cell, 1)
 
+
+def draw_sidebar():
+    sidebar_rect = pygame.Rect(width - sidebar_width, 0, sidebar_width, height)
+    pygame.draw.rect(screen, gray, sidebar_rect)
+
+    font = pygame.font.Font(None, 24)
+    text_lines = [
+        "Controls:",
+        "Space: Pause/Resume",
+        "S: Save Game",
+        "L: Load Game",
+        "R: Reset Grid",
+    ]
+
+    for i, line in enumerate(text_lines):
+        text_surface = font.render(line, True, white)
+        screen.blit(text_surface, (width - sidebar_width + 10, 10 + i * 30))
 
 
 def next_generation():
@@ -114,18 +89,53 @@ def draw_cells():
             if game_state.state[x, y] == 1:
                 pygame.draw.rect(screen, black, cell)
 
-def save_game_state():
+def save_game():
     game_state = GameState()
     np.save('game_state.npy', game_state.state)
-    print('Game state SAVED.')
 
-def load_game_state():
+def load_game():
     game_state = GameState()
     if os.path.exists('game_state.npy'):
         game_state.state = np.load('game_state.npy')
-        print('Game state LOADED.')
-    else:
-        print('No game state saved.')
+
+
+class SimulationState():
+    game_state = GameState()
+    def handle_input(self, simulation, event):
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_s:
+                save_game()
+            if event.key == pygame.K_l:
+                load_game()
+            if event.key == pygame.K_r:
+                game_state.initialize(n_cells_x, n_cells_y)
+
+class PlayingState(SimulationState):
+    def handle_input(self, simulation, event):
+        super().handle_input(simulation, event)
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_SPACE:
+                simulation.change_state(PausedState())
+
+
+class PausedState(SimulationState):
+    def handle_input(self, simulation, event):
+        super().handle_input(simulation, event)
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_SPACE:
+                simulation.change_state(PlayingState())
+
+
+class Simulation():
+    def __init__(self):
+        self.state = PlayingState()
+
+    def change_state(self, state):
+        self.state = state
+
+    def handle_input(self, event):
+        self.state.handle_input(self, event)
+
 
 clock = pygame.time.Clock()
 i = 0
@@ -133,16 +143,18 @@ running = True
 playing = True
 game_state = GameState()
 game_state.initialize(n_cells_x, n_cells_y)
+simulation = Simulation()
 
 while running:
     clock.tick(60)
     screen.fill(white)
     draw_grid()
     draw_cells()
+    draw_sidebar()
     pygame.display.flip()
     i += 1
 
-    if playing and (i%20 == 0):
+    if isinstance(simulation.state, PlayingState) and (i%20 == 0):
         next_generation()
 
 
@@ -150,13 +162,7 @@ while running:
         if event.type == pygame.QUIT:
             running = False
         if event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_SPACE:
-                playing = not playing
-            if event.key == pygame.K_s:
-                save_game_state()
-            if event.key == pygame.K_l:
-                load_game_state()
+            simulation.handle_input(event)
 
 
 pygame.quit()
-
